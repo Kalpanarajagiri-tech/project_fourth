@@ -195,7 +195,6 @@ if st.session_state.alarm_running:
 
         # Real Windows sound
         for i in range(15):
-            winsound.Beep(1000, 400)
             winsound.Beep(1500, 400)
 
         st.balloons()
