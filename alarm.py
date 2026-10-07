@@ -1,7 +1,12 @@
 import streamlit as st
 from datetime import datetime, timedelta
 import time
-import alarm
+import streamlit.components.v1 as components
+
+
+# =========================================================
+# PAGE CONFIGURATION
+# =========================================================
 
 st.set_page_config(
     page_title="Smart Alarm Clock",
@@ -9,7 +14,10 @@ st.set_page_config(
     layout="centered"
 )
 
-# ---------------- CSS ----------------
+
+# =========================================================
+# CUSTOM CSS
+# =========================================================
 
 st.markdown("""
 <style>
@@ -67,7 +75,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# ---------------- Session State ----------------
+# =========================================================
+# SESSION STATE
+# =========================================================
 
 if "alarm_set" not in st.session_state:
     st.session_state.alarm_set = False
@@ -75,8 +85,13 @@ if "alarm_set" not in st.session_state:
 if "alarm_running" not in st.session_state:
     st.session_state.alarm_running = False
 
+if "alarm_triggered" not in st.session_state:
+    st.session_state.alarm_triggered = False
 
-# ---------------- Title ----------------
+
+# =========================================================
+# TITLE
+# =========================================================
 
 st.markdown(
     '<div class="main-title">⏰ Smart Alarm Clock</div>',
@@ -84,12 +99,16 @@ st.markdown(
 )
 
 st.markdown(
-    '<div class="subtitle">Set your alarm and never miss an important moment!</div>',
+    '<div class="subtitle">'
+    'Set your alarm and never miss an important moment!'
+    '</div>',
     unsafe_allow_html=True
 )
 
 
-# ---------------- Current Time ----------------
+# =========================================================
+# CURRENT TIME
+# =========================================================
 
 now = datetime.now()
 
@@ -105,17 +124,25 @@ st.markdown(
 )
 
 
-# ---------------- Alarm Selection ----------------
+# =========================================================
+# ALARM TIME SELECTION
+# =========================================================
 
 st.subheader("🔔 Set Your Alarm")
 
+default_alarm = (
+    datetime.now() + timedelta(minutes=1)
+).time().replace(second=0, microsecond=0)
+
 alarm_time = st.time_input(
     "Choose Alarm Time",
-    value=(datetime.now() + timedelta(minutes=1)).time()
+    value=default_alarm
 )
 
 
-# ---------------- Buttons ----------------
+# =========================================================
+# BUTTONS
+# =========================================================
 
 col1, col2 = st.columns(2)
 
@@ -132,29 +159,37 @@ with col2:
     )
 
 
-# ---------------- Start Alarm ----------------
+# =========================================================
+# START ALARM
+# =========================================================
 
 if start:
 
     st.session_state.alarm_set = True
     st.session_state.alarm_running = True
+    st.session_state.alarm_triggered = False
 
     st.success(
         f"✅ Alarm set for {alarm_time.strftime('%I:%M %p')}"
     )
 
 
-# ---------------- Stop Alarm ----------------
+# =========================================================
+# STOP ALARM
+# =========================================================
 
 if stop:
 
     st.session_state.alarm_set = False
     st.session_state.alarm_running = False
+    st.session_state.alarm_triggered = False
 
     st.warning("🛑 Alarm stopped.")
 
 
-# ---------------- Alarm Running ----------------
+# =========================================================
+# ALARM RUNNING
+# =========================================================
 
 if st.session_state.alarm_running:
 
@@ -165,12 +200,17 @@ if st.session_state.alarm_running:
         alarm_time
     )
 
+    # If today's alarm time has already passed,
+    # schedule it for tomorrow.
     if alarm_datetime <= current:
         alarm_datetime += timedelta(days=1)
 
     remaining = alarm_datetime - current
 
-    total_seconds = int(remaining.total_seconds())
+    total_seconds = max(
+        0,
+        int(remaining.total_seconds())
+    )
 
     hours = total_seconds // 3600
     minutes = (total_seconds % 3600) // 60
@@ -186,38 +226,110 @@ if st.session_state.alarm_running:
         unsafe_allow_html=True
     )
 
-    # Check alarm time
+    # =====================================================
+    # ALARM TRIGGER
+    # =====================================================
+
     if remaining.total_seconds() <= 1:
 
         st.session_state.alarm_running = False
+        st.session_state.alarm_triggered = True
 
         st.error("🔔🔔 ALARM! WAKE UP! 🔔🔔")
 
-        # Real Windows sound
-        for i in range(15):
-            winsound.Beep(1500, 400)
+        # Browser-based alarm sound.
+        # This does NOT use winsound and works on Linux servers.
+        components.html(
+            """
+            <script>
+                function playAlarm() {
+
+                    const AudioContext =
+                        window.AudioContext ||
+                        window.webkitAudioContext;
+
+                    if (!AudioContext) {
+                        return;
+                    }
+
+                    const audioContext = new AudioContext();
+
+                    function beep(startTime, frequency) {
+
+                        const oscillator =
+                            audioContext.createOscillator();
+
+                        const gain =
+                            audioContext.createGain();
+
+                        oscillator.type = "sine";
+                        oscillator.frequency.value = frequency;
+
+                        gain.gain.setValueAtTime(
+                            0.0001,
+                            startTime
+                        );
+
+                        gain.gain.exponentialRampToValueAtTime(
+                            0.5,
+                            startTime + 0.05
+                        );
+
+                        gain.gain.exponentialRampToValueAtTime(
+                            0.0001,
+                            startTime + 0.35
+                        );
+
+                        oscillator.connect(gain);
+                        gain.connect(audioContext.destination);
+
+                        oscillator.start(startTime);
+                        oscillator.stop(startTime + 0.4);
+                    }
+
+                    const startTime =
+                        audioContext.currentTime + 0.1;
+
+                    for (let i = 0; i < 6; i++) {
+
+                        beep(
+                            startTime + (i * 0.6),
+                            1000
+                        );
+
+                    }
+                }
+
+                playAlarm();
+            </script>
+            """,
+            height=0
+        )
 
         st.balloons()
 
-    else:
 
-        time.sleep(1)
-        st.rerun()
-
-
-# ---------------- Status ----------------
+# =========================================================
+# ALARM STATUS
+# =========================================================
 
 if not st.session_state.alarm_running:
 
     if not st.session_state.alarm_set:
 
-        st.markdown(
-            '<div class="status">💤 No alarm is currently active</div>',
-            unsafe_allow_html=True
-        )
+        if not st.session_state.alarm_triggered:
+
+            st.markdown(
+                '<div class="status">'
+                '💤 No alarm is currently active'
+                '</div>',
+                unsafe_allow_html=True
+            )
 
 
-# ---------------- Footer ----------------
+# =========================================================
+# FOOTER
+# =========================================================
 
 st.markdown(
     """
@@ -227,3 +339,13 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
+
+# =========================================================
+# REFRESH EVERY SECOND WHILE ALARM IS RUNNING
+# =========================================================
+
+if st.session_state.alarm_running:
+
+    time.sleep(1)
+    st.rerun()
