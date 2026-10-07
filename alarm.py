@@ -1,7 +1,7 @@
 import streamlit as st
 from datetime import datetime, timedelta
 import time
-import winsound
+import alarm
 
 st.set_page_config(
     page_title="Smart Alarm Clock",
